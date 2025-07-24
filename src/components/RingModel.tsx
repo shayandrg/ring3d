@@ -1,7 +1,14 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
-import { Group, Mesh, Material, Object3D } from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
+import { 
+  Group, 
+  Mesh, 
+  Material, 
+  Object3D, 
+  MeshStandardMaterial, 
+  Color, 
+} from 'three';
 import { GLTF } from 'three-stdlib';
 
 type RingModelProps = {
@@ -17,19 +24,104 @@ interface RingGLTF extends GLTF {
   };
 }
 
+const DIAMOND_MATERIAL = {
+  color: new Color('#ffffff'),
+  roughness: 0.1,
+  metalness: 0.2,
+  transmission: 0.8,
+  thickness: 0.5,
+  ior: 2.0,
+  clearcoat: 0.8,
+  clearcoatRoughness: 0.2,
+  envMapIntensity: 1.5,
+};
+
+const GOLD_MATERIAL = {
+  color: new Color('#ffcf70'),
+  roughness: 0.2,
+  metalness: 0.9,
+  envMapIntensity: 1.0,
+  clearcoat: 0.3,
+  clearcoatRoughness: 0.3,
+};
+
 export function RingModel({ mousePosition }: RingModelProps) {
   const [modelLoaded, setModelLoaded] = useState(false);
   const [modelError, setModelError] = useState(false);
   
-  const gltf = useGLTF('/models/ring.glb') as unknown as RingGLTF;
+  const materialsRef = useRef({
+    diamond: null as MeshStandardMaterial | null,
+    gold: null as MeshStandardMaterial | null
+  });
+  
+  const gltf = useGLTF('/ring.glb', true) as unknown as RingGLTF;
   const { nodes, materials } = gltf;
   const groupRef = useRef<Group>(null);
+  const { scene } = useThree();
+  
+  useMemo(() => {
+    if (!materialsRef.current.diamond) {
+      materialsRef.current.diamond = new MeshStandardMaterial({
+        color: DIAMOND_MATERIAL.color,
+        roughness: DIAMOND_MATERIAL.roughness,
+        metalness: DIAMOND_MATERIAL.metalness,
+        envMapIntensity: DIAMOND_MATERIAL.envMapIntensity,
+      });
+    }
+    
+    if (!materialsRef.current.gold) {
+      materialsRef.current.gold = new MeshStandardMaterial({
+        color: GOLD_MATERIAL.color,
+        roughness: GOLD_MATERIAL.roughness,
+        metalness: GOLD_MATERIAL.metalness,
+        envMapIntensity: GOLD_MATERIAL.envMapIntensity,
+      });
+    }
+  }, []);
   
   useEffect(() => {
-    if (nodes && materials) {
+    if (nodes && materials && materialsRef.current.diamond && materialsRef.current.gold) {
       setModelLoaded(true);
+      
+      Object.keys(nodes).forEach((key) => {
+        const node = nodes[key];
+        if (node instanceof Mesh) {
+          const isDiamond = key.toLowerCase().includes('diamond') || 
+                           key.toLowerCase().includes('gem') || 
+                           key.toLowerCase().includes('stone');
+          
+          if (isDiamond) {
+            node.material = materialsRef.current.diamond!;
+          } else {
+            node.material = materialsRef.current.gold!;
+          }
+          
+          node.castShadow = true;
+          node.receiveShadow = true;
+          
+          if (node.geometry) {
+            node.geometry.dispose = () => {
+              console.log('Preventing geometry disposal to avoid WebGL context loss');
+            };
+          }
+        }
+      });
     }
+    
+    return () => {
+    };
   }, [nodes, materials]);
+  
+  useEffect(() => {
+    return () => {
+      if (materialsRef.current.diamond) {
+        materialsRef.current.diamond.dispose();
+      }
+      if (materialsRef.current.gold) {
+        materialsRef.current.gold.dispose();
+      }
+    };
+  }, []);
   
   useEffect(() => {
     const handleError = () => {
@@ -71,30 +163,13 @@ export function RingModel({ mousePosition }: RingModelProps) {
 
   return (
     <group ref={groupRef} dispose={null} scale={2.5} position={[0, 0, 0]}>
-      {nodes && materials && Object.keys(nodes).map((key) => {
-        const node = nodes[key];
-        if (node instanceof Mesh) {
-          return (
-            <mesh
-              key={key}
-              geometry={node.geometry}
-              material={node.material}
-              position={node.position}
-              rotation={node.rotation}
-              scale={node.scale}
-              castShadow={false}
-              receiveShadow={false}
-            />
-          );
-        }
-        return null;
-      })}
+      <primitive object={scene} />
     </group>
   );
 }
 
 try {
-  useGLTF.preload('/models/ring.glb');
+  useGLTF.preload('/ring.glb');
 } catch (error) {
   console.error('Error preloading model:', error);
 } 
