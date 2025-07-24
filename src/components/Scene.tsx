@@ -13,6 +13,9 @@ import { Group, Mesh, PCFShadowMap, MeshStandardMaterial, MeshPhysicalMaterial, 
 import { CustomEnvironment } from './CustomEnvironment';
 import { useFrame, useThree } from '@react-three/fiber';
 
+// Add this to handle basePath in Next.js
+const basePath = process.env.NODE_ENV === 'production' ? '/ring3d' : '';
+
 interface DiamondMesh extends Mesh {
   __isDiamond?: boolean;
 }
@@ -76,7 +79,7 @@ function Diamond({
 
 function RingModel() {
   const groupRef = useRef<Group>(null);
-  const { scene } = useGLTF('/ring.glb');
+  const { scene } = useGLTF(`${basePath}/ring.glb`);
   
   useEffect(() => {
     if (!groupRef.current) return;
@@ -256,7 +259,7 @@ export function Scene() {
 }
 
 try {
-  useGLTF.preload('/ring.glb', true);
+  useGLTF.preload(`${basePath}/ring.glb`, true);
 } catch (error) {
   console.error('Error preloading model:', error);
 } 
